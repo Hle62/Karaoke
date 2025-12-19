@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Karaoke Pro - Ultimate Fix</title>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://unpkg.com/pitchfinder@2.3.0/dist/pitchfinder.amd.js"></script>
+    <style>
+        :root { --bg: #0a0a0b; --accent: #00f2ff; --panel: #16161a; --gold: #ffeb3b; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; }
+        .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
+        input { width: 400px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
+        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; }
+        .main-container { display: grid; grid-template-columns: 380px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 90px); }
+        .left-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+        #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; flex-grow: 1; padding: 10px; border: 1px solid #333; }
+        
+        /* 確実にクリックを拾うためのスタイル */
+        .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 10px; border-radius: 8px; background: #222; border: 1px solid #444; position: relative; z-index: 5; }
+        .video-card:hover { background: #333; border-color: var(--accent); }
+        .video-card img, .video-card .title { pointer-events: none; }
+
+        #player { width: 100%; height: 280px; background: #000; border-radius: 12px; }
+        #canvas-wrap { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; position: relative; }
+        canvas { width: 100%; height: 100%; }
+        .info-overlay { position: absolute; top: 10px; right: 20px; text-align: right; }
+        #score-num { font-size: 72px; font-weight: 900; color: var(--gold); margin: 0; }
+        #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
+        #log { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #555; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="boot-screen" onclick="startApp()">
+    <button class="btn" style="font-size: 28px; padding: 20px 60px; border-radius: 50px;">KARAOKE START</button>
+    <p style="margin-top:20px; color:#888;">最初にここをクリックしてシステムを有効化してください</p>
+</div>
+
+<div class="header">
+    <input type="text" id="search-q" placeholder="曲名や歌手名を入力...">
+    <button class="btn" onclick="search()">検索</button>
+</div>
+
+<div class="main-container">
+    <div class="left-side">
+        <div id="search-results">曲を検索してください</div>
+    </div>
+    <div class="right-side" style="display:flex; flex-direction:column; gap:15px;">
+        <div id="player"></div>
+        <div id="canvas-wrap">
+            <div class="info-overlay">
+                <h1 id="score-num">00</h1>
+                <div id="note-name" style="color:var(--accent); font-size:24px;">--</div>
+            </div>
+            <canvas id="karaokeCanvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<div id="log">System Ready...</div>
+
+<script>
+    const API_KEY = 'AIzaSyB_tQGyb86O2w0_5Y0LpGpRS6OkIxkF_ro';
+    let player, audioCtx, analyser, pitchDetector;
+    let score = 0, history = [];
+    const canvas = document.getElementById('karaokeCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            videoId: 'LpI2vjX9mDM',
+            playerVars: { 
+                'autoplay': 0, 
+                'modestbranding': 1, 
+                'origin': window.location.origin,
+                'enablejsapi': 1 
+            },
+            events: { 
+                'onReady': () => {
+                    document.getElementById('log').innerText = "YouTube Player: Ready";
+                },
+                'onError': (e) => {
+                    document.getElementById('log').innerText = "YouTube Error: " + e.data;
+                }
+            }
+        });
+    }
+
+    async function search() {
+        const q = document.getElementById('search-q').value;
+        if (!q) return;
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=15&key=${API_KEY}`;
+        
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            const list = document.getElementById('search-results');
+            list.innerHTML = "";
+            
+            data.items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.dataset.id = item.id.videoId;
+                card.onclick = function() {
+                    const vid = this.dataset.id;
+                    changeVideo(vid);
+                };
+                card.innerHTML = `
+                    <img src="${item.snippet.thumbnails.medium.url}">
+                    <div class="title">${item.snippet.title}</div>
+                `;
+                list.appendChild(card);
+            });
+        } catch (e) {
+            document.getElementById('log').innerText = "Search Error: " + e;
+        }
+    }
+
+    function changeVideo(vid) {
+        if (player && typeof player.loadVideoById === 'function') {
+            player.loadVideoById(vid);
+            score = 0;
+            history = [];
+            document.getElementById('log').innerText = "Loading Video: " + vid;
+        } else {
+            document.getElementById('log').innerText = "Error: Player not ready for loading";
+            // プレイヤーが反応しない場合、一度再生命令を出してから再送
+            player.playVideo();
+            setTimeout(() => player.loadVideoById(vid), 500);
+        }
+    }
+
+    async function startApp() {
+        document.getElementById('boot-screen').style.display = 'none';
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = audioCtx.createMediaStreamSource(stream);
+
+            // エコー設定
+            const delay = audioCtx.createDelay();
+            delay.delayTime.value = 0.2;
+            const feedback = audioCtx.createGain();
+            feedback.gain.value = 0.3;
+            source.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+            delay.connect(audioCtx.destination);
+            source.connect(audioCtx.destination);
+
+            analyser = audioCtx.createAnalyser();
+            source.connect(analyser);
+            pitchDetector = new Pitchfinder.YIN({ sampleRate: audioCtx.sampleRate });
+
+            player.playVideo();
+            resize();
+            loop();
+        } catch (e) {
+            alert("マイクの起動に失敗しました。ブラウザの設定でマイクを許可してください。");
+        }
+    }
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+
+    function loop() {
+        const buf = new Float32Array(2048);
+        analyser.getFloatTimeDomainData(buf);
+        const freq = pitchDetector(buf);
+        let note = (freq && freq > 60 && freq < 1000) ? 12 * Math.log2(freq / 440) + 69 : null;
+
+        if (note) {
+            score += 0.1;
+            document.getElementById('score-num').innerText = Math.floor(score).toString().padStart(2, '0');
+        }
+
+        history.push({ note, time: Date.now() });
+        if (history.length > 300) history.shift();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    function draw() {
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        history.forEach((h, i) => {
+            if (!h.note) return;
+            let x = canvas.width - (history.length - i) * 4;
+            let y = canvas.height - (h.note - 45) * 15;
+            ctx.fillStyle = `hsl(${(h.note * 25) % 360}, 100%, 70%)`;
+            ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI*2); ctx.fill();
+        });
+    }
+    window.onresize = resize;
+</script>
+</body>
+</html>
