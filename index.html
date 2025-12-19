@@ -2,75 +2,70 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Karaoke - Lyrics Edition</title>
+    <title>AI Karaoke - Auto Lyrics Edition</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
-        :root { --bg: #0a0a0b; --accent: #00f2ff; --panel: #16161a; --text: #f0f0f0; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
+        :root { --bg: #050505; --accent: #00f2ff; --panel: #16161a; --text: #e0e0e0; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
         
-        /* 検索ヘッダー */
+        /* ヘッダー */
         .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
         input { width: 400px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
-        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; transition: 0.3s; }
-        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; }
 
-        /* メインレイアウト */
+        /* レイアウト */
         .main-container { display: grid; grid-template-columns: 350px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 85px); }
         
-        /* 左サイド：検索結果 */
+        /* 検索結果 */
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; padding: 10px; border: 1px solid #333; }
-        .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 10px; border-radius: 8px; background: #222; transition: 0.2s; }
-        .video-card:hover { background: #333; }
-        .video-card img { width: 100px; border-radius: 6px; }
-        .video-title { font-size: 13px; font-weight: bold; }
+        .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 8px; border-radius: 8px; background: #222; border: 1px solid transparent; }
+        .video-card:hover { border-color: var(--accent); background: #2a2a2a; }
+        .video-card img { width: 100px; border-radius: 6px; pointer-events: none; }
+        .video-title { font-size: 12px; font-weight: bold; pointer-events: none; }
 
-        /* 右サイド：動画 ＆ 歌詞表示 */
-        .display-side { display: flex; flex-direction: column; gap: 15px; }
-        #player { width: 100%; height: 320px; background: #000; border-radius: 12px; }
+        /* 表示エリア */
+        .display-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+        #player { width: 100%; height: 350px; background: #000; border-radius: 12px; }
         
         /* 歌詞パネル */
-        .lyrics-container { flex-grow: 1; background: #111; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
-        .lyrics-header { background: #222; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-        #lyrics-view { flex-grow: 1; padding: 30px; overflow-y: auto; font-size: 24px; line-height: 1.8; text-align: center; white-space: pre-wrap; color: #ccc; }
-        #lyrics-view:focus { outline: none; background: #151515; }
+        .lyrics-box { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .lyrics-info { background: #1a1a1a; padding: 8px 20px; font-size: 12px; color: #888; display: flex; justify-content: space-between; }
+        #lyrics-content { flex-grow: 1; padding: 40px; overflow-y: auto; font-size: 28px; line-height: 2; text-align: center; white-space: pre-wrap; color: #fff; font-weight: bold; }
 
         /* 起動画面 */
-        #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="boot-screen" onclick="startApp()">
-    <button class="btn" style="font-size: 28px; padding: 25px 70px; border-radius: 50px;">SING START</button>
-    <p style="margin-top:20px; color:#888;">マイクとエコー機能をオンにして開始します</p>
+    <button class="btn" style="font-size: 28px; padding: 25px 80px; border-radius: 50px;">SING START</button>
 </div>
 
 <div class="header">
-    <input type="text" id="search-q" placeholder="歌いたい曲名・歌手名を入力...">
-    <button class="btn" onclick="search()">曲を検索</button>
+    <input type="text" id="search-q" placeholder="曲名や歌手名を入力...">
+    <button class="btn" onclick="search()">検索</button>
 </div>
 
 <div class="main-container">
-    <div id="search-results">
-        <p style="text-align:center; color:#555; margin-top:50px;">曲を検索してください</p>
-    </div>
+    <div id="search-results">曲を検索してください</div>
 
     <div class="display-side">
         <div id="player"></div>
         
-        <div class="lyrics-container">
-            <div class="lyrics-header">
-                <span>LYRICS VIEWER</span>
-                <button class="btn" style="padding: 5px 15px; font-size: 12px;" onclick="openLyricsSearch()">ネットで歌詞を探す</button>
+        <div class="lyrics-box">
+            <div class="lyrics-info">
+                <span id="lyrics-status">自動歌詞取得エンジン稼働中</span>
+                <span id="song-detail">--</span>
             </div>
-            <div id="lyrics-view" contenteditable="true">ここに歌詞を貼り付けるか、上のボタンで検索してください。</div>
+            <div id="lyrics-content">動画を選択するとここに歌詞が表示されます</div>
         </div>
     </div>
 </div>
 
 <script>
     const API_KEY = 'AIzaSyB_tQGyb86O2w0_5Y0LpGpRS6OkIxkF_ro';
-    let player, audioCtx, currentVideoTitle = "";
+    let player, audioCtx;
 
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
@@ -93,54 +88,68 @@
             data.items.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'video-card';
-                card.onclick = () => {
-                    player.loadVideoById(item.id.videoId);
-                    currentVideoTitle = item.snippet.title;
-                    document.getElementById('lyrics-view').innerText = "「" + currentVideoTitle + "」の歌詞を準備中...\n下のボタンから歌詞をコピーしてここに貼り付けてください。";
-                };
-                card.innerHTML = `
-                    <img src="${item.snippet.thumbnails.medium.url}">
-                    <div class="video-title">${item.snippet.title}</div>
-                `;
+                card.onclick = () => selectVideo(item.id.videoId, item.snippet.title);
+                card.innerHTML = `<img src="${item.snippet.thumbnails.medium.url}"><div class="video-title">${item.snippet.title}</div>`;
                 list.appendChild(card);
             });
-        } catch (e) { alert("検索エラーが発生しました。"); }
+        } catch (e) { console.error(e); }
     }
 
-    // 別ウィンドウで歌詞検索を開く
-    function openLyricsSearch() {
-        if (!currentVideoTitle) {
-            alert("先に曲を選択してください。");
-            return;
+    function selectVideo(id, title) {
+        player.loadVideoById(id);
+        fetchLyrics(title);
+    }
+
+    // --- 歌詞自動取得ロジック ---
+    async function fetchLyrics(videoTitle) {
+        const content = document.getElementById('lyrics-content');
+        const status = document.getElementById('lyrics-status');
+        const detail = document.getElementById('song-detail');
+        
+        content.innerText = "歌詞を検索中...";
+        status.innerText = "検索中...";
+
+        // YouTubeタイトルから余計な文字を削除 (カラオケ, Off Vocalなど)
+        let cleanTitle = videoTitle.replace(/カラオケ|KARAOKE|off vocal|歌詞付き|full|official|lyrics|【|】|/gi, "").trim();
+        
+        // 歌詞API (LRCLIB) を叩く
+        try {
+            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
+            const data = await res.json();
+
+            if (data && data.length > 0) {
+                const bestMatch = data[0];
+                content.innerText = bestMatch.plainLyrics || "歌詞が見つかりましたが、表示形式が非対応です。";
+                status.innerText = "取得完了";
+                detail.innerText = `${bestMatch.artistName} - ${bestMatch.trackName}`;
+                content.scrollTop = 0;
+            } else {
+                content.innerText = "歌詞が見つかりませんでした。\n手動で検索するか、別の動画を試してください。";
+                status.innerText = "未発見";
+                detail.innerText = "--";
+            }
+        } catch (e) {
+            content.innerText = "エラーが発生しました。";
+            status.innerText = "エラー";
         }
-        const query = encodeURIComponent(currentVideoTitle + " 歌詞");
-        window.open(`https://www.google.com/search?q=${query}`, '_blank', 'width=800,height=600');
     }
 
     async function startApp() {
         document.getElementById('boot-screen').style.display = 'none';
         
-        // オーディオとエコーの設定
+        // エコー（残響）機能は維持
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const source = audioCtx.createMediaStreamSource(stream);
-
             const delay = audioCtx.createDelay();
             delay.delayTime.value = 0.2;
             const feedback = audioCtx.createGain();
             feedback.gain.value = 0.3;
-            
-            source.connect(delay);
-            delay.connect(feedback);
-            feedback.connect(delay);
-            delay.connect(audioCtx.destination);
-            source.connect(audioCtx.destination);
-
+            source.connect(delay); delay.connect(feedback); feedback.connect(delay);
+            delay.connect(audioCtx.destination); source.connect(audioCtx.destination);
             player.playVideo();
-        } catch (e) {
-            alert("マイクの使用を許可してください。");
-        }
+        } catch (e) { console.log("マイク無効"); }
     }
 </script>
 </body>
