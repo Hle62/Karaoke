@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Karaoke - Auto Lyrics Edition</title>
+    <title>AI Karaoke - Ultra Lyrics Finder</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
         :root { --bg: #050505; --accent: #00f2ff; --panel: #16161a; --text: #e0e0e0; }
@@ -10,27 +10,28 @@
         
         /* ヘッダー */
         .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
-        input { width: 400px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
+        input { width: 350px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
         .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; }
 
         /* レイアウト */
         .main-container { display: grid; grid-template-columns: 350px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 85px); }
         
-        /* 検索結果 */
+        /* 左サイド：検索結果 */
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; padding: 10px; border: 1px solid #333; }
         .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 8px; border-radius: 8px; background: #222; border: 1px solid transparent; }
         .video-card:hover { border-color: var(--accent); background: #2a2a2a; }
         .video-card img { width: 100px; border-radius: 6px; pointer-events: none; }
         .video-title { font-size: 12px; font-weight: bold; pointer-events: none; }
 
-        /* 表示エリア */
+        /* 右サイド：表示エリア */
         .display-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
         #player { width: 100%; height: 350px; background: #000; border-radius: 12px; }
         
         /* 歌詞パネル */
-        .lyrics-box { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .lyrics-info { background: #1a1a1a; padding: 8px 20px; font-size: 12px; color: #888; display: flex; justify-content: space-between; }
-        #lyrics-content { flex-grow: 1; padding: 40px; overflow-y: auto; font-size: 28px; line-height: 2; text-align: center; white-space: pre-wrap; color: #fff; font-weight: bold; }
+        .lyrics-box { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
+        .lyrics-control { background: #1a1a1a; padding: 10px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
+        .lyrics-control input { width: 250px; padding: 5px 10px; font-size: 14px; }
+        #lyrics-content { flex-grow: 1; padding: 40px; overflow-y: auto; font-size: 32px; line-height: 1.8; text-align: center; white-space: pre-wrap; color: #fff; font-weight: bold; }
 
         /* 起動画面 */
         #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
@@ -43,8 +44,8 @@
 </div>
 
 <div class="header">
-    <input type="text" id="search-q" placeholder="曲名や歌手名を入力...">
-    <button class="btn" onclick="search()">検索</button>
+    <input type="text" id="search-q" placeholder="歌いたい曲をYouTube検索...">
+    <button class="btn" onclick="search()">動画検索</button>
 </div>
 
 <div class="main-container">
@@ -54,11 +55,12 @@
         <div id="player"></div>
         
         <div class="lyrics-box">
-            <div class="lyrics-info">
-                <span id="lyrics-status">自動歌詞取得エンジン稼働中</span>
-                <span id="song-detail">--</span>
+            <div class="lyrics-control">
+                <span style="font-size: 12px; color: #888;">歌詞が合わない場合は入力 →</span>
+                <input type="text" id="manual-lyrics-q" placeholder="正確な曲名を入力...">
+                <button class="btn" style="padding: 5px 15px; font-size: 12px;" onclick="manualFetch()">歌詞再検索</button>
             </div>
-            <div id="lyrics-content">動画を選択するとここに歌詞が表示されます</div>
+            <div id="lyrics-content">動画を選択してください</div>
         </div>
     </div>
 </div>
@@ -74,17 +76,16 @@
         });
     }
 
+    // YouTube動画検索
     async function search() {
         const q = document.getElementById('search-q').value;
         if (!q) return;
         const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=15&key=${API_KEY}`;
-        
         try {
             const res = await fetch(url);
             const data = await res.json();
             const list = document.getElementById('search-results');
             list.innerHTML = "";
-            
             data.items.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'video-card';
@@ -92,52 +93,47 @@
                 card.innerHTML = `<img src="${item.snippet.thumbnails.medium.url}"><div class="video-title">${item.snippet.title}</div>`;
                 list.appendChild(card);
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { alert("動画検索エラー"); }
     }
 
     function selectVideo(id, title) {
         player.loadVideoById(id);
-        fetchLyrics(title);
+        // タイトルからノイズを削る
+        let cleanTitle = title.replace(/【.*?】|\[.*?\]|カラオケ|KARAOKE|off vocal|歌ってみた|歌詞付き|歌詞入り|Music Video|MV|Official|フル|/gi, "")
+                              .replace(/-|／|/g, " ").trim();
+        document.getElementById('manual-lyrics-q').value = cleanTitle;
+        fetchLyrics(cleanTitle);
     }
 
-    // --- 歌詞自動取得ロジック ---
-    async function fetchLyrics(videoTitle) {
-        const content = document.getElementById('lyrics-content');
-        const status = document.getElementById('lyrics-status');
-        const detail = document.getElementById('song-detail');
-        
-        content.innerText = "歌詞を検索中...";
-        status.innerText = "検索中...";
+    function manualFetch() {
+        const q = document.getElementById('manual-lyrics-q').value;
+        fetchLyrics(q);
+    }
 
-        // YouTubeタイトルから余計な文字を削除 (カラオケ, Off Vocalなど)
-        let cleanTitle = videoTitle.replace(/カラオケ|KARAOKE|off vocal|歌詞付き|full|official|lyrics|【|】|/gi, "").trim();
+    // 歌詞取得エンジン (LRCLIB)
+    async function fetchLyrics(q) {
+        const content = document.getElementById('lyrics-content');
+        content.innerText = "歌詞を検索中...";
         
-        // 歌詞API (LRCLIB) を叩く
         try {
-            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`);
+            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`);
             const data = await res.json();
 
             if (data && data.length > 0) {
-                const bestMatch = data[0];
-                content.innerText = bestMatch.plainLyrics || "歌詞が見つかりましたが、表示形式が非対応です。";
-                status.innerText = "取得完了";
-                detail.innerText = `${bestMatch.artistName} - ${bestMatch.trackName}`;
+                // 最もそれらしい候補を表示
+                const result = data[0];
+                content.innerText = result.plainLyrics || "歌詞データが空でした。";
                 content.scrollTop = 0;
             } else {
-                content.innerText = "歌詞が見つかりませんでした。\n手動で検索するか、別の動画を試してください。";
-                status.innerText = "未発見";
-                detail.innerText = "--";
+                content.innerText = "自動検索で見つかりませんでした。\n上の入力欄に「正しい曲名」だけを入力して再検索してください。";
             }
         } catch (e) {
-            content.innerText = "エラーが発生しました。";
-            status.innerText = "エラー";
+            content.innerText = "通信エラーが発生しました。";
         }
     }
 
     async function startApp() {
         document.getElementById('boot-screen').style.display = 'none';
-        
-        // エコー（残響）機能は維持
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -149,7 +145,7 @@
             source.connect(delay); delay.connect(feedback); feedback.connect(delay);
             delay.connect(audioCtx.destination); source.connect(audioCtx.destination);
             player.playVideo();
-        } catch (e) { console.log("マイク無効"); }
+        } catch (e) { console.log("Mic error"); }
     }
 </script>
 </body>
