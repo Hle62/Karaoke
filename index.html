@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate AI Karaoke - Bug Fixed Edition</title>
+    <title>Ultimate Karaoke AI - Stable Edition</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://unpkg.com/kuroshiro@1.2.0/dist/kuroshiro.min.js"></script>
     <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script>
@@ -12,7 +12,7 @@
         
         .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
         input[type="text"] { width: 350px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
-        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
 
         .main-container { display: grid; grid-template-columns: 350px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 85px); }
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; padding: 10px; border: 1px solid #333; }
@@ -36,8 +36,9 @@
 
         #settings-panel { position: fixed; right: 20px; bottom: 80px; width: 300px; background: var(--panel); border: 1px solid #444; border-radius: 15px; padding: 20px; display: none; z-index: 2000; }
         .setting-item { margin-bottom: 15px; }
-        .setting-item label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; }
+        .setting-item label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-bottom: 5px; }
         .settings-toggle { position: fixed; right: 20px; bottom: 20px; width: 50px; height: 50px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; z-index: 2001; }
+        
         #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
     </style>
 </head>
@@ -45,11 +46,11 @@
 
 <div id="boot-screen" onclick="startApp()">
     <button class="btn" style="font-size: 28px; padding: 25px 80px; border-radius: 50px;">KARAOKE START</button>
-    <p id="boot-status" style="margin-top:20px; color:#ffeb3b;">準備中...</p>
+    <p id="boot-status" style="margin-top:20px; color:#ffeb3b;">クリックしてマイクを許可</p>
 </div>
 
 <div class="header">
-    <input type="text" id="search-q" placeholder="曲名を検索して動画を選んでください...">
+    <input type="text" id="search-q" placeholder="曲名を検索...">
     <button class="btn" onclick="search()">動画検索</button>
 </div>
 
@@ -60,7 +61,7 @@
         <div class="lyrics-box">
             <div class="lyrics-status-bar">
                 <span id="st-sync">同期: 待機中</span>
-                <span id="st-ruby">ルビ: 待機中</span>
+                <span id="st-ruby">ルビ: 未読込</span>
             </div>
             <div id="lyrics-content"></div>
         </div>
@@ -69,10 +70,11 @@
 
 <div class="settings-toggle" onclick="toggleSettings()">⚙️</div>
 <div id="settings-panel">
-    <h3 style="margin-top:0; font-size:16px;">設定</h3>
+    <h3 style="margin-top:0; font-size:16px; border-bottom:1px solid #333; padding-bottom:8px;">設定</h3>
     <div class="setting-item">
         <label><input type="checkbox" id="check-furigana" checked onchange="updateToggles()"> 自動ルビ(ふりがな)</label>
         <label><input type="checkbox" id="check-sync" checked onchange="updateToggles()"> 歌詞の自動同期</label>
+        <label><input type="checkbox" id="check-monitor" checked onchange="toggleMonitoring()"> 自分の声を聴く</label>
     </div>
     <div class="setting-item">
         <label>ノイキャン強度 <span id="val-nc">30</span></label><input type="range" min="0" max="100" value="30" oninput="updateAudio('nc', this.value)">
@@ -93,7 +95,6 @@
 
     async function search() {
         const q = document.getElementById('search-q').value;
-        if (!q) return;
         const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=10&key=${API_KEY}`);
         const data = await res.json();
         const list = document.getElementById('search-results');
@@ -109,32 +110,19 @@
 
     async function fetchLyrics(title) {
         const content = document.getElementById('lyrics-content');
-        content.innerHTML = "歌詞を取得中...";
-        syncedLyrics = [];
-        document.getElementById('st-sync').innerText = "同期: 検索中";
-        
+        content.innerHTML = "歌詞を取得中..."; syncedLyrics = [];
         let clean = title.replace(/【.*?】|\[.*?\]|カラオケ|off vocal|歌ってみた|Official|MV|/gi, "").trim();
         try {
             const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(clean)}`);
             const data = await res.json();
-            
             if (data && data.length > 0) {
                 const m = data[0];
-                if (m.syncedLyrics) {
-                    parseLRC(m.syncedLyrics);
-                    document.getElementById('st-sync').innerText = "同期: 有効(LRC)";
-                } else {
-                    // 同期データがない場合は普通に分割
-                    m.plainLyrics.split('\n').forEach(text => { if(text.trim()) syncedLyrics.push({time: -1, text: text.trim()}); });
-                    document.getElementById('st-sync').innerText = "同期: 無効(テキストのみ)";
-                }
+                if (m.syncedLyrics) parseLRC(m.syncedLyrics);
+                else m.plainLyrics.split('\n').forEach(text => { if(text.trim()) syncedLyrics.push({time: -1, text: text.trim()}); });
                 renderLyrics();
-                if (isFuriganaEnabled) convertFurigana();
-            } else {
-                content.innerHTML = "歌詞が見つかりませんでした。";
-                document.getElementById('st-sync').innerText = "同期: 失敗";
-            }
-        } catch (e) { content.innerHTML = "エラーが発生しました。"; }
+                if (isFuriganaEnabled && kuroshiro) convertFurigana();
+            } else { content.innerHTML = "歌詞が見つかりませんでした。"; }
+        } catch (e) { content.innerHTML = "歌詞取得エラー。"; }
     }
 
     function parseLRC(lrc) {
@@ -151,8 +139,7 @@
         syncedLyrics.forEach((l, i) => {
             const d = document.createElement('div');
             d.className = 'lyric-line' + (isSyncEnabled && l.time !== -1 ? '' : ' no-sync-mode');
-            d.id = 'line-' + i;
-            d.innerText = l.text;
+            d.id = 'line-' + i; d.innerText = l.text;
             content.appendChild(d);
         });
     }
@@ -161,21 +148,20 @@
         if (!kuroshiro) return;
         document.getElementById('st-ruby').innerText = "ルビ: 変換中...";
         const lines = document.querySelectorAll('.lyric-line');
-        for (let l of lines) {
-            const result = await kuroshiro.convert(l.innerText, { to: "hiragana", mode: "furigana" });
-            l.innerHTML = result;
-        }
+        for (let l of lines) { l.innerHTML = await kuroshiro.convert(l.innerText, { to: "hiragana", mode: "furigana" }); }
         document.getElementById('st-ruby').innerText = "ルビ: 完了";
     }
 
+    // --- メイン起動ロジック (タイムアウト付き) ---
     async function startApp() {
-        document.getElementById('boot-status').innerText = "音響システム起動中...";
+        document.getElementById('boot-status').innerText = "音響システムを準備中...";
         try {
+            // 1. オーディオ初期化
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
-            
-            // ノイキャン・エコー等のノード作成 (前回のロジック維持)
             const source = audioCtx.createMediaStreamSource(stream);
+            
+            // ノード作成とマイク音の接続
             hpFilter = audioCtx.createBiquadFilter(); hpFilter.type = "highpass"; hpFilter.frequency.value = 100;
             gateNode = audioCtx.createDynamicsCompressor(); gateNode.threshold.value = -30;
             micGain = audioCtx.createGain(); monitorNode = audioCtx.createGain();
@@ -186,51 +172,45 @@
             micGain.connect(monitorNode); monitorNode.connect(audioCtx.destination);
             micGain.connect(delayNode); delayNode.connect(feedbackGain); feedbackGain.connect(delayNode); delayNode.connect(echoGain); echoGain.connect(audioCtx.destination);
 
-            document.getElementById('boot-status').innerText = "ふりがなエンジン読込中...";
-            kuroshiro = new Kuroshiro();
-            const ana = new KuromojiAnalyzer({ dictPath: "https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dict" });
-            await kuroshiro.init(ana);
+            // 2. ふりがなエンジンの読み込み (最大5秒でタイムアウト)
+            document.getElementById('boot-status').innerText = "ふりがな準備中 (時間がかかる場合があります)...";
+            
+            const initKuroshiro = async () => {
+                const ks = new Kuroshiro();
+                const ana = new KuromojiAnalyzer({ dictPath: "https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dict" });
+                await ks.init(ana);
+                return ks;
+            };
 
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+
+            try {
+                kuroshiro = await Promise.race([initKuroshiro(), timeout]);
+                document.getElementById('st-ruby').innerText = "ルビ: 準備完了";
+            } catch (e) {
+                console.warn("Furigana engine load timed out. Proceeding without it.");
+                document.getElementById('st-ruby').innerText = "ルビ: 読込失敗(ルビなしで続行)";
+            }
+
+            // 3. アプリ開始
             document.getElementById('boot-screen').style.display = 'none';
             if(player && player.playVideo) player.playVideo();
             loop();
-        } catch (e) { alert("起動に失敗しました。マイクを許可してください。"); }
+        } catch (e) { alert("マイクが許可されなかったか、エラーが発生しました。"); }
     }
 
-    function updateToggles() {
-        isFuriganaEnabled = document.getElementById('check-furigana').checked;
-        isSyncEnabled = document.getElementById('check-sync').checked;
-        renderLyrics();
-        if (isFuriganaEnabled) convertFurigana();
-    }
-
-    function updateAudio(type, val) {
-        document.getElementById('val-' + type).innerText = val;
-        if (!audioCtx) return;
-        const now = audioCtx.currentTime;
-        if (type === 'mic') micGain.gain.setTargetAtTime(val, now, 0.05);
-        if (type === 'echo') echoGain.gain.setTargetAtTime(val, now, 0.05);
-        if (type === 'nc') { gateNode.threshold.setTargetAtTime(-70 + (val * 0.7), now, 0.05); }
-    }
+    function toggleMonitoring() { monitorNode.gain.setTargetAtTime(document.getElementById('check-monitor').checked ? 1 : 0, audioCtx.currentTime, 0.1); }
+    function updateToggles() { isFuriganaEnabled = document.getElementById('check-furigana').checked; isSyncEnabled = document.getElementById('check-sync').checked; renderLyrics(); if(isFuriganaEnabled) convertFurigana(); }
+    function updateAudio(type, val) { document.getElementById('val-'+type).innerText=val; if(!audioCtx)return; const n=audioCtx.currentTime; if(type==='mic')micGain.gain.setTargetAtTime(val,n,0.05); if(type==='echo')echoGain.gain.setTargetAtTime(val,n,0.05); if(type==='nc')gateNode.threshold.setTargetAtTime(-70+(val*0.7),n,0.05); }
 
     function loop() {
-        if (player && player.getPlayerState() === 1 && isSyncEnabled && syncedLyrics.length > 0) {
+        if (player && player.getPlayerState() === 1 && isSyncEnabled && syncedLyrics.length > 0 && syncedLyrics[0].time !== -1) {
             const time = player.getCurrentTime();
             let active = -1;
-            // LRCデータがある場合
-            if (syncedLyrics[0].time !== -1) {
-                for (let i=0; i<syncedLyrics.length; i++) {
-                    if (time >= syncedLyrics[i].time) active = i; else break;
-                }
-            }
+            for (let i=0; i<syncedLyrics.length; i++) { if (time >= syncedLyrics[i].time) active = i; else break; }
             if (active !== -1) {
                 document.querySelectorAll('.lyric-line').forEach((l, i) => {
-                    if (i === active) {
-                        if (!l.classList.contains('active')) {
-                            l.classList.add('active');
-                            l.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    } else l.classList.remove('active');
+                    if (i === active) { if (!l.classList.contains('active')) { l.classList.add('active'); l.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } else l.classList.remove('active');
                 });
             }
         }
