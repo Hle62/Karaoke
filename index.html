@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Karaoke Pro - Zero Latency Focus</title>
+    <title>AI Karaoke Pro - Noise Cancel & Low Latency</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://unpkg.com/kuroshiro@1.2.0/dist/kuroshiro.min.js"></script>
     <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script>
@@ -22,10 +22,13 @@
         #lyrics-content { flex-grow: 1; padding: 150px 40px; overflow-y: auto; text-align: center; scroll-behavior: smooth; }
         .lyric-line { font-size: 32px; font-weight: bold; margin: 40px 0; opacity: 0.15; transition: all 0.3s; }
         .lyric-line.active { opacity: 1; color: var(--accent); transform: scale(1.1); text-shadow: 0 0 15px rgba(0,242,255,0.5); }
+        
+        /* 設定パネル */
         #settings-panel { position: fixed; right: 20px; bottom: 80px; width: 300px; background: var(--panel); border: 1px solid #444; border-radius: 15px; padding: 20px; display: none; z-index: 2000; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
-        .setting-item { margin-bottom: 20px; }
+        .setting-item { margin-bottom: 15px; }
         .setting-item label { display: flex; justify-content: space-between; font-size: 13px; color: #aaa; margin-bottom: 8px; }
-        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer; }
+        .setting-item input[type="range"] { width: 100%; cursor: pointer; }
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; font-size: 13px; }
         .settings-toggle { position: fixed; right: 20px; bottom: 20px; width: 50px; height: 50px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; z-index: 2001; }
         #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
     </style>
@@ -51,38 +54,41 @@
 
 <div class="settings-toggle" onclick="toggleSettings()">⚙️</div>
 <div id="settings-panel">
-    <h3 style="margin: 0 0 15px 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px;">遅延・オーディオ設定</h3>
+    <h3 style="margin: 0 0 15px 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px;">オーディオ・ノイキャン設定</h3>
     
     <div class="setting-item">
         <div class="toggle-row" onclick="toggleMonitoring()">
             <span>自分の声を聴く (Monitor)</span>
             <input type="checkbox" id="check-monitor" checked>
         </div>
-        <p style="font-size: 11px; color: #777;">※声がズレて歌いにくい場合はOFFにしてください</p>
+    </div>
+
+    <div class="setting-item">
+        <label>ノイキャン強度 <span id="val-nc">30</span>%</label>
+        <input type="range" min="0" max="100" step="1" value="30" oninput="updateAudio('nc', this.value)">
     </div>
 
     <div class="setting-item">
         <label>マイク音量 <span id="val-mic">1.0</span></label>
         <input type="range" min="0" max="2" step="0.1" value="1.0" oninput="updateAudio('mic', this.value)">
     </div>
+
     <div class="setting-item">
         <label>エコー音量 <span id="val-echo">0.4</span></label>
         <input type="range" min="0" max="1" step="0.1" value="0.4" oninput="updateAudio('echo', this.value)">
     </div>
-    
-    <hr style="border: 0; border-top: 1px solid #333;">
-    
+
+    <hr style="border:0; border-top:1px solid #333;">
     <div style="font-size:12px; color:#888;">
-        <label><input type="checkbox" id="check-furigana" checked onchange="toggleFurigana()"> 自動ルビ(ふりがな)</label><br>
+        <label><input type="checkbox" id="check-furigana" checked onchange="toggleFurigana()"> 自動ルビ</label><br>
         <label><input type="checkbox" id="check-sync" checked onchange="toggleSync()"> 歌詞の自動同期</label>
     </div>
-
-    <button class="btn" style="width:100%; margin-top:15px;" onclick="toggleSettings()">完了</button>
+    <button class="btn" style="width:100%; margin-top:10px;" onclick="toggleSettings()">閉じる</button>
 </div>
 
 <script>
     const API_KEY = 'AIzaSyB_tQGyb86O2w0_5Y0LpGpRS6OkIxkF_ro';
-    let player, audioCtx, kuroshiro, micGain, delayNode, feedbackGain, echoGain, monitorNode;
+    let player, audioCtx, kuroshiro, micGain, delayNode, feedbackGain, echoGain, monitorNode, gateNode, hpFilter;
     let syncedLyrics = [], isFuriganaEnabled = true, isSyncEnabled = true, isMonitorEnabled = true;
 
     function onYouTubeIframeAPIReady() {
@@ -145,11 +151,28 @@
         document.getElementById('boot-screen').style.display = 'none';
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // ブラウザ標準のノイキャンもリクエスト
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { 
+                    noiseSuppression: true,
+                    echoCancellation: true,
+                    autoGainControl: true
+                } 
+            });
             const source = audioCtx.createMediaStreamSource(stream);
 
+            // ノイキャン用フィルター (High Pass)
+            hpFilter = audioCtx.createBiquadFilter();
+            hpFilter.type = "highpass";
+            hpFilter.frequency.value = 100; // 100Hz以下のノイズをカット
+
+            // ノイズゲート (DynamicsCompressorをゲートとして使用)
+            gateNode = audioCtx.createDynamicsCompressor();
+            gateNode.threshold.value = -30; // ここの値を調整
+            gateNode.ratio.value = 12;
+
             micGain = audioCtx.createGain();
-            monitorNode = audioCtx.createGain(); // 自分の声を聴くためのスイッチ用
+            monitorNode = audioCtx.createGain();
             delayNode = audioCtx.createDelay(1.0);
             feedbackGain = audioCtx.createGain();
             echoGain = audioCtx.createGain();
@@ -158,13 +181,15 @@
             feedbackGain.gain.value = 0.3;
             echoGain.gain.value = 0.4;
 
-            source.connect(micGain);
+            // 接続: source -> hpFilter -> gateNode -> micGain
+            source.connect(hpFilter);
+            hpFilter.connect(gateNode);
+            gateNode.connect(micGain);
             
-            // モニター回路（ここをON/OFFする）
+            // モニターとエコー
             micGain.connect(monitorNode);
             monitorNode.connect(audioCtx.destination);
 
-            // エコー回路（モニターがOFFでも解析は続くように分離）
             micGain.connect(delayNode);
             delayNode.connect(feedbackGain);
             feedbackGain.connect(delayNode);
@@ -177,15 +202,7 @@
 
             player.playVideo();
             loop();
-        } catch (e) { alert("マイクの起動に失敗しました。"); }
-    }
-
-    function toggleMonitoring() {
-        isMonitorEnabled = !isMonitorEnabled;
-        document.getElementById('check-monitor').checked = isMonitorEnabled;
-        if (monitorNode) {
-            monitorNode.gain.setTargetAtTime(isMonitorEnabled ? 1 : 0, audioCtx.currentTime, 0.1);
-        }
+        } catch (e) { alert("マイク起動失敗"); }
     }
 
     function updateAudio(type, val) {
@@ -194,6 +211,18 @@
         const now = audioCtx.currentTime;
         if (type === 'mic') micGain.gain.setTargetAtTime(val, now, 0.05);
         if (type === 'echo') echoGain.gain.setTargetAtTime(val, now, 0.05);
+        if (type === 'nc') {
+            // ノイキャン強度 = ゲートのしきい値を調整 (-100dB ～ 0dB)
+            const threshold = -70 + (val * 0.7); 
+            gateNode.threshold.setTargetAtTime(threshold, now, 0.05);
+            hpFilter.frequency.setTargetAtTime(80 + (val * 2), now, 0.05); // 低音カットも連動
+        }
+    }
+
+    function toggleMonitoring() {
+        isMonitorEnabled = !isMonitorEnabled;
+        document.getElementById('check-monitor').checked = isMonitorEnabled;
+        if (monitorNode) monitorNode.gain.setTargetAtTime(isMonitorEnabled ? 1 : 0, audioCtx.currentTime, 0.1);
     }
 
     function toggleFurigana() { isFuriganaEnabled = document.getElementById('check-furigana').checked; renderLyrics(); if(isFuriganaEnabled) convertFurigana(); }
