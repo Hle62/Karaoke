@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate AI Karaoke - Full Features</title>
+    <title>Ultimate AI Karaoke - Bug Fixed Edition</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://unpkg.com/kuroshiro@1.2.0/dist/kuroshiro.min.js"></script>
     <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script>
@@ -10,44 +10,34 @@
         :root { --bg: #050505; --accent: #00f2ff; --panel: #1a1a1c; --text: #e0e0e0; }
         body { font-family: 'Segoe UI', Meiryo, sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
         
-        /* ヘッダー */
-        .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; z-index: 100; }
+        .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
         input[type="text"] { width: 350px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
-        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
-        .btn:hover { opacity: 0.8; }
+        .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
 
-        /* レイアウト */
         .main-container { display: grid; grid-template-columns: 350px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 85px); }
-        
-        /* 検索結果リスト */
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; padding: 10px; border: 1px solid #333; }
         .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 8px; border-radius: 8px; background: #222; border: 1px solid transparent; }
         .video-card:hover { border-color: var(--accent); background: #2a2a2a; }
         .video-card img { width: 100px; border-radius: 6px; pointer-events: none; }
-        .video-title { font-size: 12px; font-weight: bold; pointer-events: none; }
 
-        /* 右側：表示エリア */
         .display-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
         #player { width: 100%; height: 260px; background: #000; border-radius: 12px; }
         
-        /* 歌詞パネル */
         .lyrics-box { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .lyrics-search-bar { background: #1a1a1a; padding: 10px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
+        .lyrics-status-bar { background: #1a1a1a; padding: 5px 20px; font-size: 11px; color: #666; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
         #lyrics-content { flex-grow: 1; padding: 150px 40px; overflow-y: auto; text-align: center; scroll-behavior: smooth; }
         
-        /* 歌詞行スタイル */
-        .lyric-line { font-size: 32px; font-weight: bold; margin: 40px 0; opacity: 0.15; transition: all 0.4s; }
-        .lyric-line.active { opacity: 1; color: var(--accent); transform: scale(1.1); text-shadow: 0 0 15px rgba(0,242,255,0.5); }
-        .lyric-line.no-sync { opacity: 1; color: white; margin: 20px 0; font-size: 28px; }
+        .lyric-line { font-size: 32px; font-weight: bold; margin: 45px 0; opacity: 0.15; transition: all 0.5s ease; }
+        .lyric-line.active { opacity: 1; color: var(--accent); transform: scale(1.15); text-shadow: 0 0 15px rgba(0,242,255,0.6); }
+        .lyric-line.no-sync-mode { opacity: 1; color: white; margin: 25px 0; }
+
         ruby { ruby-position: over; }
-        rt { font-size: 14px; color: #00f2ff; font-weight: normal; }
+        rt { font-size: 15px; color: var(--accent); font-weight: normal; }
 
-        /* 設定パネル */
-        #settings-panel { position: fixed; right: 20px; bottom: 80px; width: 300px; background: var(--panel); border: 1px solid #444; border-radius: 15px; padding: 20px; display: none; z-index: 2000; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        #settings-panel { position: fixed; right: 20px; bottom: 80px; width: 300px; background: var(--panel); border: 1px solid #444; border-radius: 15px; padding: 20px; display: none; z-index: 2000; }
         .setting-item { margin-bottom: 15px; }
-        .setting-item label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .setting-item label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; }
         .settings-toggle { position: fixed; right: 20px; bottom: 20px; width: 50px; height: 50px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; z-index: 2001; }
-
         #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
     </style>
 </head>
@@ -55,23 +45,22 @@
 
 <div id="boot-screen" onclick="startApp()">
     <button class="btn" style="font-size: 28px; padding: 25px 80px; border-radius: 50px;">KARAOKE START</button>
+    <p id="boot-status" style="margin-top:20px; color:#ffeb3b;">準備中...</p>
 </div>
 
 <div class="header">
-    <input type="text" id="search-q" placeholder="歌いたい動画をYouTube検索...">
+    <input type="text" id="search-q" placeholder="曲名を検索して動画を選んでください...">
     <button class="btn" onclick="search()">動画検索</button>
 </div>
 
 <div class="main-container">
     <div id="search-results">曲を検索してください</div>
-
     <div class="display-side">
         <div id="player"></div>
         <div class="lyrics-box">
-            <div class="lyrics-search-bar">
-                <span style="font-size: 11px; color: #777;">歌詞が違う場合は入力 →</span>
-                <input type="text" id="manual-lyrics-q" placeholder="正確な曲名 アーティスト名" style="width: 200px; font-size: 13px; padding: 5px;">
-                <button class="btn" style="padding: 5px 12px; font-size: 11px;" onclick="manualFetch()">歌詞再検索</button>
+            <div class="lyrics-status-bar">
+                <span id="st-sync">同期: 待機中</span>
+                <span id="st-ruby">ルビ: 待機中</span>
             </div>
             <div id="lyrics-content"></div>
         </div>
@@ -80,25 +69,17 @@
 
 <div class="settings-toggle" onclick="toggleSettings()">⚙️</div>
 <div id="settings-panel">
-    <h3 style="margin: 0 0 15px 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px;">オーディオ・歌詞設定</h3>
+    <h3 style="margin-top:0; font-size:16px;">設定</h3>
     <div class="setting-item">
-        <label><input type="checkbox" id="check-monitor" checked onchange="toggleMonitoring()"> 自分の声を聴く (Monitor)</label>
-        <label><input type="checkbox" id="check-furigana" checked onchange="toggleFurigana()"> 自動ルビ (ふりがな)</label>
-        <label><input type="checkbox" id="check-sync" checked onchange="toggleSync()"> 歌詞の自動同期</label>
+        <label><input type="checkbox" id="check-furigana" checked onchange="updateToggles()"> 自動ルビ(ふりがな)</label>
+        <label><input type="checkbox" id="check-sync" checked onchange="updateToggles()"> 歌詞の自動同期</label>
     </div>
     <div class="setting-item">
-        <label>ノイキャン強度 <span id="val-nc">30</span>%</label>
-        <input type="range" min="0" max="100" step="1" value="30" oninput="updateAudio('nc', this.value)">
+        <label>ノイキャン強度 <span id="val-nc">30</span></label><input type="range" min="0" max="100" value="30" oninput="updateAudio('nc', this.value)">
+        <label>マイク音量 <span id="val-mic">1.0</span></label><input type="range" min="0" max="2" step="0.1" value="1.0" oninput="updateAudio('mic', this.value)">
+        <label>エコー音量 <span id="val-echo">0.4</span></label><input type="range" min="0" max="1" step="0.1" value="0.4" oninput="updateAudio('echo', this.value)">
     </div>
-    <div class="setting-item">
-        <label>マイク音量 <span id="val-mic">1.0</span></label>
-        <input type="range" min="0" max="2" step="0.1" value="1.0" oninput="updateAudio('mic', this.value)">
-    </div>
-    <div class="setting-item">
-        <label>エコー音量 <span id="val-echo">0.4</span></label>
-        <input type="range" min="0" max="1" step="0.1" value="0.4" oninput="updateAudio('echo', this.value)">
-    </div>
-    <button class="btn" style="width:100%;" onclick="toggleSettings()">閉じる</button>
+    <button class="btn" style="width:100%" onclick="toggleSettings()">閉じる</button>
 </div>
 
 <script>
@@ -110,53 +91,57 @@
         player = new YT.Player('player', { videoId: 'LpI2vjX9mDM', playerVars: { 'origin': window.location.origin, 'enablejsapi': 1 } });
     }
 
-    // 1. 動画検索機能
     async function search() {
         const q = document.getElementById('search-q').value;
         if (!q) return;
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=12&key=${API_KEY}`);
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=10&key=${API_KEY}`);
         const data = await res.json();
         const list = document.getElementById('search-results');
         list.innerHTML = "";
         data.items.forEach(item => {
             const card = document.createElement('div');
             card.className = 'video-card';
-            card.onclick = () => {
-                player.loadVideoById(item.id.videoId);
-                // タイトルから検索用キーワードを抽出
-                let clean = item.snippet.title.replace(/【.*?】|\[.*?\]|カラオケ|off vocal|歌ってみた|Official|Music Video|MV|/gi, "").replace(/-|／/g, " ").trim();
-                document.getElementById('manual-lyrics-q').value = clean;
-                fetchLyrics(clean);
-            };
-            card.innerHTML = `<img src="${item.snippet.thumbnails.medium.url}"><div class="video-title">${item.snippet.title}</div>`;
+            card.onclick = () => { player.loadVideoById(item.id.videoId); fetchLyrics(item.snippet.title); };
+            card.innerHTML = `<img src="${item.snippet.thumbnails.medium.url}"><div style="font-size:12px;">${item.snippet.title}</div>`;
             list.appendChild(card);
         });
     }
 
-    // 2. 歌詞検索機能 (LRCLIB連携)
-    async function fetchLyrics(query) {
+    async function fetchLyrics(title) {
         const content = document.getElementById('lyrics-content');
-        content.innerHTML = "歌詞を検索中...";
+        content.innerHTML = "歌詞を取得中...";
         syncedLyrics = [];
+        document.getElementById('st-sync').innerText = "同期: 検索中";
+        
+        let clean = title.replace(/【.*?】|\[.*?\]|カラオケ|off vocal|歌ってみた|Official|MV|/gi, "").trim();
         try {
-            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
+            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(clean)}`);
             const data = await res.json();
+            
             if (data && data.length > 0) {
                 const m = data[0];
-                if (m.syncedLyrics) parseLRC(m.syncedLyrics);
-                else content.innerHTML = `<div class="lyric-line no-sync">${m.plainLyrics.replace(/\n/g,"<br>")}</div>`;
+                if (m.syncedLyrics) {
+                    parseLRC(m.syncedLyrics);
+                    document.getElementById('st-sync').innerText = "同期: 有効(LRC)";
+                } else {
+                    // 同期データがない場合は普通に分割
+                    m.plainLyrics.split('\n').forEach(text => { if(text.trim()) syncedLyrics.push({time: -1, text: text.trim()}); });
+                    document.getElementById('st-sync').innerText = "同期: 無効(テキストのみ)";
+                }
                 renderLyrics();
-                if (isFuriganaEnabled) setTimeout(convertFurigana, 300);
-            } else { content.innerHTML = "歌詞が見つかりませんでした。上の入力欄から再検索してください。"; }
-        } catch (e) { content.innerHTML = "通信エラー"; }
+                if (isFuriganaEnabled) convertFurigana();
+            } else {
+                content.innerHTML = "歌詞が見つかりませんでした。";
+                document.getElementById('st-sync').innerText = "同期: 失敗";
+            }
+        } catch (e) { content.innerHTML = "エラーが発生しました。"; }
     }
 
-    function manualFetch() { fetchLyrics(document.getElementById('manual-lyrics-q').value); }
-
     function parseLRC(lrc) {
+        const timeReg = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
         lrc.split('\n').forEach(line => {
-            const m = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/.exec(line);
-            if (m) syncedLyrics.push({ time: parseInt(m[1])*60 + parseInt(m[2]) + parseInt(m[3])/100, text: line.replace(/\[.*?\]/, "").trim() });
+            const m = timeReg.exec(line);
+            if (m) syncedLyrics.push({ time: parseInt(m[1])*60 + parseInt(m[2]) + parseInt(m[3])/100, text: line.replace(timeReg, "").trim() });
         });
     }
 
@@ -165,44 +150,58 @@
         content.innerHTML = "";
         syncedLyrics.forEach((l, i) => {
             const d = document.createElement('div');
-            d.className = 'lyric-line' + (isSyncEnabled ? '' : ' no-sync');
-            d.id = 'line-' + i; d.innerText = l.text;
+            d.className = 'lyric-line' + (isSyncEnabled && l.time !== -1 ? '' : ' no-sync-mode');
+            d.id = 'line-' + i;
+            d.innerText = l.text;
             content.appendChild(d);
         });
     }
 
     async function convertFurigana() {
         if (!kuroshiro) return;
-        document.querySelectorAll('.lyric-line').forEach(async l => { l.innerHTML = await kuroshiro.convert(l.innerText, { to: "hiragana", mode: "furigana" }); });
+        document.getElementById('st-ruby').innerText = "ルビ: 変換中...";
+        const lines = document.querySelectorAll('.lyric-line');
+        for (let l of lines) {
+            const result = await kuroshiro.convert(l.innerText, { to: "hiragana", mode: "furigana" });
+            l.innerHTML = result;
+        }
+        document.getElementById('st-ruby').innerText = "ルビ: 完了";
     }
 
-    // 3. オーディオ・ノイキャン設定
     async function startApp() {
-        document.getElementById('boot-screen').style.display = 'none';
+        document.getElementById('boot-status').innerText = "音響システム起動中...";
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+            
+            // ノイキャン・エコー等のノード作成 (前回のロジック維持)
             const source = audioCtx.createMediaStreamSource(stream);
-
-            // ノイキャン回路
             hpFilter = audioCtx.createBiquadFilter(); hpFilter.type = "highpass"; hpFilter.frequency.value = 100;
-            gateNode = audioCtx.createDynamicsCompressor(); gateNode.threshold.value = -30; gateNode.ratio.value = 12;
-
+            gateNode = audioCtx.createDynamicsCompressor(); gateNode.threshold.value = -30;
             micGain = audioCtx.createGain(); monitorNode = audioCtx.createGain();
             delayNode = audioCtx.createDelay(1.0); feedbackGain = audioCtx.createGain(); echoGain = audioCtx.createGain();
-
             delayNode.delayTime.value = 0.25; feedbackGain.gain.value = 0.3; echoGain.gain.value = 0.4;
-
+            
             source.connect(hpFilter); hpFilter.connect(gateNode); gateNode.connect(micGain);
             micGain.connect(monitorNode); monitorNode.connect(audioCtx.destination);
             micGain.connect(delayNode); delayNode.connect(feedbackGain); feedbackGain.connect(delayNode); delayNode.connect(echoGain); echoGain.connect(audioCtx.destination);
 
+            document.getElementById('boot-status').innerText = "ふりがなエンジン読込中...";
             kuroshiro = new Kuroshiro();
             const ana = new KuromojiAnalyzer({ dictPath: "https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dict" });
             await kuroshiro.init(ana);
+
+            document.getElementById('boot-screen').style.display = 'none';
             if(player && player.playVideo) player.playVideo();
             loop();
-        } catch (e) { alert("マイク起動失敗"); }
+        } catch (e) { alert("起動に失敗しました。マイクを許可してください。"); }
+    }
+
+    function updateToggles() {
+        isFuriganaEnabled = document.getElementById('check-furigana').checked;
+        isSyncEnabled = document.getElementById('check-sync').checked;
+        renderLyrics();
+        if (isFuriganaEnabled) convertFurigana();
     }
 
     function updateAudio(type, val) {
@@ -211,21 +210,29 @@
         const now = audioCtx.currentTime;
         if (type === 'mic') micGain.gain.setTargetAtTime(val, now, 0.05);
         if (type === 'echo') echoGain.gain.setTargetAtTime(val, now, 0.05);
-        if (type === 'nc') { gateNode.threshold.setTargetAtTime(-70 + (val * 0.7), now, 0.05); hpFilter.frequency.setTargetAtTime(80 + (val * 2), now, 0.05); }
+        if (type === 'nc') { gateNode.threshold.setTargetAtTime(-70 + (val * 0.7), now, 0.05); }
     }
 
-    function toggleMonitoring() { monitorNode.gain.setTargetAtTime(document.getElementById('check-monitor').checked ? 1 : 0, audioCtx.currentTime, 0.1); }
-    function toggleFurigana() { isFuriganaEnabled = document.getElementById('check-furigana').checked; renderLyrics(); if(isFuriganaEnabled) convertFurigana(); }
-    function toggleSync() { isSyncEnabled = document.getElementById('check-sync').checked; renderLyrics(); }
-
     function loop() {
-        if (player && player.getPlayerState() === 1 && isSyncEnabled) {
+        if (player && player.getPlayerState() === 1 && isSyncEnabled && syncedLyrics.length > 0) {
             const time = player.getCurrentTime();
-            let active = 0;
-            for (let i=0; i<syncedLyrics.length; i++) { if (time >= syncedLyrics[i].time) active = i; else break; }
-            document.querySelectorAll('.lyric-line').forEach((l, i) => {
-                if (i === active) { if (!l.classList.contains('active')) { l.classList.add('active'); l.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } else l.classList.remove('active');
-            });
+            let active = -1;
+            // LRCデータがある場合
+            if (syncedLyrics[0].time !== -1) {
+                for (let i=0; i<syncedLyrics.length; i++) {
+                    if (time >= syncedLyrics[i].time) active = i; else break;
+                }
+            }
+            if (active !== -1) {
+                document.querySelectorAll('.lyric-line').forEach((l, i) => {
+                    if (i === active) {
+                        if (!l.classList.contains('active')) {
+                            l.classList.add('active');
+                            l.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    } else l.classList.remove('active');
+                });
+            }
         }
         requestAnimationFrame(loop);
     }
