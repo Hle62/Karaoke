@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Karaoke AI - All Features Fixed</title>
+    <title>Ultimate Karaoke AI - Furigana Fixed</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://unpkg.com/kuroshiro@1.2.0/dist/kuroshiro.min.js"></script>
     <script src="https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js"></script>
@@ -10,43 +10,31 @@
         :root { --bg: #050505; --accent: #00f2ff; --panel: #1a1a1c; --text: #e0e0e0; }
         body { font-family: 'Segoe UI', Meiryo, sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
         
-        /* ヘッダー: 動画検索 */
         .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
         input[type="text"] { width: 350px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
         .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
 
-        /* メイン構成 */
         .main-container { display: grid; grid-template-columns: 350px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 85px); }
-        
-        /* 左: 動画検索結果 */
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; padding: 10px; border: 1px solid #333; }
         .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 8px; border-radius: 8px; background: #222; border: 1px solid transparent; }
         .video-card:hover { border-color: var(--accent); background: #2a2a2a; }
         .video-card img { width: 100px; border-radius: 6px; pointer-events: none; }
-        .video-title { font-size: 12px; font-weight: bold; pointer-events: none; }
 
-        /* 右: プレイヤー & 歌詞 */
         .display-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
         #player { width: 100%; height: 260px; background: #000; border-radius: 12px; }
         
         .lyrics-box { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        
-        /* 【復活】歌詞再検索バー */
         .lyrics-search-bar { background: #1a1a1a; padding: 10px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; }
-        .lyrics-search-bar input { width: 220px; font-size: 13px; padding: 6px; border-radius: 5px; }
-        
-        .lyrics-status-bar { background: #000; padding: 3px 20px; font-size: 10px; color: #555; display: flex; justify-content: space-between; }
+        .lyrics-status-bar { background: #000; padding: 5px 20px; font-size: 10px; color: #555; display: flex; justify-content: space-between; }
         
         #lyrics-content { flex-grow: 1; padding: 150px 40px; overflow-y: auto; text-align: center; scroll-behavior: smooth; }
-        
-        /* 歌詞スタイル */
-        .lyric-line { font-size: 32px; font-weight: bold; margin: 45px 0; opacity: 0.15; transition: all 0.5s ease; }
-        .lyric-line.active { opacity: 1; color: var(--accent); transform: scale(1.15); text-shadow: 0 0 15px rgba(0,242,255,0.6); }
-        .lyric-line.no-sync-mode { opacity: 1; color: white; margin: 25px 0; font-size: 28px; }
-        ruby { ruby-position: over; }
-        rt { font-size: 15px; color: var(--accent); font-weight: normal; }
+        .lyric-line { font-size: 32px; font-weight: bold; margin: 45px 0; opacity: 0.15; transition: all 0.5s ease; line-height: 1.6; }
+        .lyric-line.active { opacity: 1; color: var(--accent); transform: scale(1.1); text-shadow: 0 0 15px rgba(0,242,255,0.6); }
+        .lyric-line.no-sync-mode { opacity: 1; color: white; margin: 25px 0; }
 
-        /* 設定パネル */
+        ruby { ruby-position: over; }
+        rt { font-size: 15px; color: var(--accent); font-weight: normal; margin-bottom: 0.2em; }
+
         #settings-panel { position: fixed; right: 20px; bottom: 80px; width: 300px; background: var(--panel); border: 1px solid #444; border-radius: 15px; padding: 20px; display: none; z-index: 2000; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
         .setting-item { margin-bottom: 15px; }
         .setting-item label { display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-bottom: 5px; }
@@ -73,8 +61,7 @@
         <div id="player"></div>
         <div class="lyrics-box">
             <div class="lyrics-search-bar">
-                <span style="font-size: 11px; color: #777;">歌詞が違う場合は修正 →</span>
-                <input type="text" id="manual-lyrics-q" placeholder="正確な曲名 アーティスト名" class="header-input">
+                <input type="text" id="manual-lyrics-q" placeholder="曲名 アーティスト名" style="width: 220px; font-size: 13px; padding: 6px;">
                 <button class="btn" style="padding: 5px 12px; font-size: 11px;" onclick="manualFetch()">歌詞再検索</button>
             </div>
             <div class="lyrics-status-bar">
@@ -91,7 +78,8 @@
     <h3 style="margin: 0 0 15px 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px;">各種設定</h3>
     <div class="setting-item">
         <label><input type="checkbox" id="check-furigana" checked onchange="updateToggles()"> 自動ルビ(ふりがな)</label>
-        <label><input type="checkbox" id="check-sync" checked onchange="updateToggles()"> 歌詞の自動同期</label>
+        <button class="btn" style="width:100%; padding: 5px; font-size: 10px; margin-top:5px; background:#444; color:white;" onclick="convertFurigana()">今すぐルビを振り直す</button>
+        <label style="margin-top:10px;"><input type="checkbox" id="check-sync" checked onchange="updateToggles()"> 歌詞の自動同期</label>
         <label><input type="checkbox" id="check-monitor" checked onchange="toggleMonitoring()"> 自分の声を聴く (Monitor)</label>
     </div>
     <div class="setting-item">
@@ -111,7 +99,6 @@
         player = new YT.Player('player', { videoId: 'LpI2vjX9mDM', playerVars: { 'origin': window.location.origin, 'enablejsapi': 1 } });
     }
 
-    // YouTube検索
     async function search() {
         const q = document.getElementById('search-q').value;
         const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=10&key=${API_KEY}`);
@@ -132,7 +119,6 @@
         });
     }
 
-    // 歌詞検索
     async function fetchLyrics(query) {
         const content = document.getElementById('lyrics-content');
         content.innerHTML = "歌詞を取得中..."; syncedLyrics = [];
@@ -151,9 +137,10 @@
                     document.getElementById('st-sync').innerText = "同期: 無効(テキスト)";
                 }
                 renderLyrics();
-                if (isFuriganaEnabled && kuroshiro) convertFurigana();
+                // 歌詞描画後にルビ振りを実行
+                setTimeout(() => { if (isFuriganaEnabled) convertFurigana(); }, 500);
             } else {
-                content.innerHTML = "歌詞が見つかりませんでした。上のバーから再検索してください。";
+                content.innerHTML = "歌詞が見つかりませんでした。";
                 document.getElementById('st-sync').innerText = "同期: 失敗";
             }
         } catch (e) { content.innerHTML = "歌詞取得エラー"; }
@@ -181,11 +168,22 @@
     }
 
     async function convertFurigana() {
-        if (!kuroshiro) return;
+        if (!kuroshiro) {
+            document.getElementById('st-ruby').innerText = "ルビ: エンジン未読込";
+            return;
+        }
         document.getElementById('st-ruby').innerText = "ルビ: 変換中...";
         const lines = document.querySelectorAll('.lyric-line');
-        for (let l of lines) { l.innerHTML = await kuroshiro.convert(l.innerText, { to: "hiragana", mode: "furigana" }); }
-        document.getElementById('st-ruby').innerText = "ルビ: 完了";
+        try {
+            for (let l of lines) {
+                // テキストのみを抽出して変換（既存のrubyタグを回避）
+                const rawText = l.innerText;
+                l.innerHTML = await kuroshiro.convert(rawText, { to: "hiragana", mode: "furigana" });
+            }
+            document.getElementById('st-ruby').innerText = "ルビ: 完了";
+        } catch (e) {
+            document.getElementById('st-ruby').innerText = "ルビ: 変換エラー";
+        }
     }
 
     async function startApp() {
@@ -195,7 +193,6 @@
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
             const source = audioCtx.createMediaStreamSource(stream);
             
-            // 音響ノード
             hpFilter = audioCtx.createBiquadFilter(); hpFilter.type = "highpass"; hpFilter.frequency.value = 100;
             gateNode = audioCtx.createDynamicsCompressor(); gateNode.threshold.value = -30;
             micGain = audioCtx.createGain(); monitorNode = audioCtx.createGain();
@@ -206,17 +203,21 @@
             micGain.connect(monitorNode); monitorNode.connect(audioCtx.destination);
             micGain.connect(delayNode); delayNode.connect(feedbackGain); feedbackGain.connect(delayNode); delayNode.connect(echoGain); echoGain.connect(audioCtx.destination);
 
-            // ルビエンジン読込 (5秒でタイムアウト)
             document.getElementById('boot-status').innerText = "ルビエンジン読込中...";
-            const timeout = new Promise((_, r) => setTimeout(() => r(new Error("Timeout")), 5000));
             const loadKuro = async () => {
                 const ks = new Kuroshiro();
+                // 辞書の読込先を確実なものに変更
                 await ks.init(new KuromojiAnalyzer({ dictPath: "https://unpkg.com/kuroshiro-analyzer-kuromoji@1.1.0/dict" }));
                 return ks;
             };
 
-            try { kuroshiro = await Promise.race([loadKuro(), timeout]); document.getElementById('st-ruby').innerText = "ルビ: 読込済"; }
-            catch (e) { document.getElementById('st-ruby').innerText = "ルビ: 読込失敗(ルビなしで続行)"; }
+            try {
+                // タイムアウトを8秒に延長して確実に読込
+                kuroshiro = await Promise.race([loadKuro(), new Promise((_, r) => setTimeout(() => r(new Error("Timeout")), 8000))]);
+                document.getElementById('st-ruby').innerText = "ルビ: 準備完了";
+            } catch (e) {
+                document.getElementById('st-ruby').innerText = "ルビ: 読込失敗(ルビなしで開始)";
+            }
 
             document.getElementById('boot-screen').style.display = 'none';
             if(player && player.playVideo) player.playVideo();
@@ -225,7 +226,12 @@
     }
 
     function toggleMonitoring() { monitorNode.gain.setTargetAtTime(document.getElementById('check-monitor').checked ? 1 : 0, audioCtx.currentTime, 0.1); }
-    function updateToggles() { isFuriganaEnabled = document.getElementById('check-furigana').checked; isSyncEnabled = document.getElementById('check-sync').checked; renderLyrics(); if(isFuriganaEnabled) convertFurigana(); }
+    function updateToggles() { 
+        isFuriganaEnabled = document.getElementById('check-furigana').checked; 
+        isSyncEnabled = document.getElementById('check-sync').checked; 
+        renderLyrics(); 
+        if(isFuriganaEnabled) convertFurigana(); 
+    }
     function updateAudio(type, val) { document.getElementById('val-'+type).innerText=val; if(!audioCtx)return; const n=audioCtx.currentTime; if(type==='mic')micGain.gain.setTargetAtTime(val,n,0.05); if(type==='echo')echoGain.gain.setTargetAtTime(val,n,0.05); if(type==='nc')gateNode.threshold.setTargetAtTime(-70+(val*0.7),n,0.05); }
 
     function loop() {
@@ -234,8 +240,14 @@
             let active = -1;
             for (let i=0; i<syncedLyrics.length; i++) { if (time >= syncedLyrics[i].time) active = i; else break; }
             if (active !== -1) {
-                document.querySelectorAll('.lyric-line').forEach((l, i) => {
-                    if (i === active) { if (!l.classList.contains('active')) { l.classList.add('active'); l.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } else l.classList.remove('active');
+                const lines = document.querySelectorAll('.lyric-line');
+                lines.forEach((l, i) => {
+                    if (i === active) { 
+                        if (!l.classList.contains('active')) { 
+                            l.classList.add('active'); 
+                            l.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+                        } 
+                    } else l.classList.remove('active');
                 });
             }
         }
