@@ -2,13 +2,14 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI Karaoke Pro - GitHub Cloud Version</title>
+    <title>AI Karaoke Pro - Master Edition</title>
     <script src="https://www.youtube.com/iframe_api"></script>
     <script src="https://unpkg.com/pitchfinder@2.3.0/dist/pitchfinder.amd.js"></script>
     <style>
         :root { --bg: #050505; --accent: #00f2ff; --panel: #16161a; --gold: #ffeb3b; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; overflow: hidden; }
         
+        /* UIレイアウト */
         .header { background: var(--panel); padding: 15px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #333; }
         input { width: 400px; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 16px; }
         .btn { background: var(--accent); color: black; font-weight: bold; border: none; padding: 10px 25px; border-radius: 8px; cursor: pointer; }
@@ -16,31 +17,41 @@
         .main-container { display: grid; grid-template-columns: 380px 1fr; gap: 15px; padding: 15px; height: calc(100vh - 90px); }
         .left-side { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
         #search-results { background: var(--panel); border-radius: 12px; overflow-y: auto; flex-grow: 1; padding: 10px; border: 1px solid #333; }
-        
-        /* 選択クリックを確実にするスタイル */
-        .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 10px; border-radius: 8px; background: #222; border: 1px solid transparent; }
+        .video-card { display: flex; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 10px; border-radius: 8px; background: #222; border: 1px solid #444; }
         .video-card:hover { background: #333; border-color: var(--accent); }
-        .video-card img, .video-card .title { pointer-events: none; } /* 子要素がクリックを邪魔しない */
+        .video-card img, .video-card .title { pointer-events: none; }
 
+        .right-side { display: flex; flex-direction: column; gap: 15px; position: relative; }
         #player { width: 100%; height: 280px; background: #000; border-radius: 12px; }
-        #canvas-wrap { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; position: relative; }
+        
+        #canvas-wrap { flex-grow: 1; background: #000; border-radius: 12px; border: 1px solid #333; position: relative; overflow: hidden; }
         canvas { width: 100%; height: 100%; }
-        
-        .info-overlay { position: absolute; top: 10px; right: 20px; text-align: right; }
-        #score-num { font-size: 72px; font-weight: 900; color: var(--gold); margin: 0; }
-        
-        #boot-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
-        #status-log { position: fixed; bottom: 5px; left: 5px; font-size: 10px; color: #444; }
+
+        /* スコア表示 */
+        .info-overlay { position: absolute; top: 10px; right: 20px; text-align: right; pointer-events: none; }
+        #score-num { font-size: 72px; font-weight: 900; color: var(--gold); text-shadow: 0 0 20px rgba(255, 235, 59, 0.5); margin: 0; }
+
+        /* 起動・リザルト画面 */
+        .full-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .result-rank { font-size: 120px; font-weight: 900; color: var(--gold); margin: 0; }
     </style>
 </head>
 <body>
 
-<div id="boot-screen" onclick="startApp()">
+<div id="boot-screen" class="full-overlay" onclick="startApp()">
     <button class="btn" style="font-size: 28px; padding: 20px 60px; border-radius: 50px;">KARAOKE START</button>
 </div>
 
+<div id="result-screen" class="full-overlay" style="display: none;" onclick="this.style.display='none'">
+    <h2 style="color: var(--accent);">歌唱終了！今回の評価は…</h2>
+    <p class="result-rank" id="final-rank">A</p>
+    <p id="final-score" style="font-size: 32px; color: white;">SCORE: 0</p>
+    <p id="comment" style="color: #888;">素晴らしい歌声でした！</p>
+    <button class="btn" style="margin-top: 20px;">閉じる</button>
+</div>
+
 <div class="header">
-    <input type="text" id="search-q" placeholder="曲名を入力して検索...">
+    <input type="text" id="search-q" placeholder="歌手名や曲名を入力...">
     <button class="btn" onclick="search()">検索</button>
 </div>
 
@@ -48,19 +59,17 @@
     <div class="left-side">
         <div id="search-results">曲を検索してください</div>
     </div>
-    <div class="right-side" style="display:flex; flex-direction:column; gap:15px;">
+    <div class="right-side">
         <div id="player"></div>
         <div id="canvas-wrap">
             <div class="info-overlay">
                 <h1 id="score-num">00</h1>
-                <div id="note-name" style="color:var(--accent); font-size:24px;">--</div>
+                <div id="note-name" style="color:var(--accent); font-size:24px; font-weight:bold;">--</div>
             </div>
             <canvas id="karaokeCanvas"></canvas>
         </div>
     </div>
 </div>
-
-<div id="status-log">System Initializing...</div>
 
 <script>
     const API_KEY = 'AIzaSyB_tQGyb86O2w0_5Y0LpGpRS6OkIxkF_ro';
@@ -69,95 +78,76 @@
     const canvas = document.getElementById('karaokeCanvas');
     const ctx = canvas.getContext('2d');
 
-    // YouTube API初期化
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
             videoId: 'LpI2vjX9mDM',
-            playerVars: { 
-                'autoplay': 0, 
-                'modestbranding': 1, 
-                'rel': 0,
-                'origin': window.location.origin, // GitHub Pagesのドメインを明示的に許可
-                'enablejsapi': 1
-            },
+            playerVars: { 'autoplay': 0, 'modestbranding': 1, 'origin': window.location.origin, 'enablejsapi': 1 },
             events: {
-                'onReady': () => { document.getElementById('status-log').innerText = "Player: Ready"; },
-                'onError': (e) => { console.error("YT Error:", e.data); }
+                'onStateChange': (e) => {
+                    // 動画が終わったらリザルトを表示
+                    if (e.data === YT.PlayerState.ENDED) showResult();
+                }
             }
         });
     }
 
-    // 検索処理
     async function search() {
         const q = document.getElementById('search-q').value;
         if (!q) return;
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=12&key=${API_KEY}`;
-        
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q + " カラオケ")}&type=video&maxResults=15&key=${API_KEY}`;
         try {
             const res = await fetch(url);
             const data = await res.json();
             const list = document.getElementById('search-results');
             list.innerHTML = "";
-            
             data.items.forEach(item => {
-                const vid = item.id.videoId;
                 const card = document.createElement('div');
                 card.className = 'video-card';
-                
-                // 動画選択時のクリックイベント
-                card.onclick = () => {
-                    console.log("Selecting video:", vid);
-                    if (player && typeof player.loadVideoById === 'function') {
-                        player.loadVideoById(vid); // 動画の読み込み
-                        score = 0; // スコアリセット
-                        history = []; // グラフリセット
-                    } else {
-                        alert("プレイヤーがまだ準備できていません。少し待ってからもう一度押してください。");
-                    }
-                };
-                
-                card.innerHTML = `
-                    <img src="${item.snippet.thumbnails.medium.url}">
-                    <div class="title">${item.snippet.title}</div>
-                `;
+                card.onclick = () => { if(player.loadVideoById) { player.loadVideoById(item.id.videoId); score=0; history=[]; } };
+                card.innerHTML = `<img src="${item.snippet.thumbnails.medium.url}"><div class="title">${item.snippet.title}</div>`;
                 list.appendChild(card);
             });
-        } catch (e) {
-            alert("検索に失敗しました。");
-        }
+        } catch (e) { console.error(e); }
     }
 
-    // アプリ起動
     async function startApp() {
         document.getElementById('boot-screen').style.display = 'none';
-        try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const source = audioCtx.createMediaStreamSource(stream);
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(stream);
 
-            // プロ仕様エコー設定
-            const delay = audioCtx.createDelay();
-            delay.delayTime.value = 0.2;
-            const feedback = audioCtx.createGain();
-            feedback.gain.value = 0.3;
-            source.connect(delay);
-            delay.connect(feedback);
-            feedback.connect(delay);
-            delay.connect(audioCtx.destination);
-            source.connect(audioCtx.destination);
+        // プロ仕様エコー
+        const delay = audioCtx.createDelay();
+        delay.delayTime.value = 0.2;
+        const feedback = audioCtx.createGain();
+        feedback.gain.value = 0.3;
+        source.connect(delay); delay.connect(feedback); feedback.connect(delay);
+        delay.connect(audioCtx.destination); source.connect(audioCtx.destination);
 
-            analyser = audioCtx.createAnalyser();
-            source.connect(analyser);
-            pitchDetector = new Pitchfinder.YIN({ sampleRate: audioCtx.sampleRate });
+        analyser = audioCtx.createAnalyser();
+        source.connect(analyser);
+        pitchDetector = new Pitchfinder.YIN({ sampleRate: audioCtx.sampleRate });
 
-            // プレイヤーをアクティブにする
-            if(player && player.playVideo) player.playVideo();
-            
-            resize();
-            loop();
-        } catch (e) {
-            alert("マイクを許可してください");
-        }
+        player.playVideo();
+        resize();
+        loop();
+    }
+
+    function showResult() {
+        const resultScreen = document.getElementById('result-screen');
+        const rankLabel = document.getElementById('final-rank');
+        const scoreLabel = document.getElementById('final-score');
+        const commentLabel = document.getElementById('comment');
+        
+        const finalScore = Math.floor(score);
+        scoreLabel.innerText = "SCORE: " + finalScore;
+        
+        if (finalScore > 500) { rankLabel.innerText = "S"; commentLabel.innerText = "伝説級の歌声です！"; }
+        else if (finalScore > 300) { rankLabel.innerText = "A"; commentLabel.innerText = "プロ顔負けの歌唱力です！"; }
+        else if (finalScore > 100) { rankLabel.innerText = "B"; commentLabel.innerText = "なかなか上手ですね！"; }
+        else { rankLabel.innerText = "C"; commentLabel.innerText = "もっと練習しましょう！"; }
+        
+        resultScreen.style.display = 'flex';
     }
 
     function resize() {
@@ -172,12 +162,14 @@
         let note = (freq && freq > 60 && freq < 1000) ? 12 * Math.log2(freq / 440) + 69 : null;
 
         if (note) {
-            score += 0.1;
+            score += 0.15;
             document.getElementById('score-num').innerText = Math.floor(score).toString().padStart(2, '0');
+            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            document.getElementById('note-name').innerText = noteNames[Math.round(note) % 12];
         }
 
         history.push({ note, time: Date.now() });
-        if (history.length > 300) history.shift();
+        if (history.length > 400) history.shift();
         draw();
         requestAnimationFrame(loop);
     }
@@ -188,9 +180,20 @@
             if (!h.note) return;
             let x = canvas.width - (history.length - i) * 4;
             let y = canvas.height - (h.note - 45) * 15;
-            ctx.fillStyle = `hsl(${(h.note * 25) % 360}, 100%, 70%)`;
-            ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = `hsl(${(h.note * 25) % 360}, 100%, 50%)`;
+            ctx.fillStyle = `hsl(${(h.note * 25) % 360}, 100%, 75%)`;
+            ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+            
+            // 歌っている時の火花演出
+            if (i === history.length - 1 && Math.random() > 0.5) {
+                for(let j=0; j<5; j++) {
+                    ctx.fillStyle = "white";
+                    ctx.fillRect(x + (Math.random()-0.5)*20, y + (Math.random()-0.5)*20, 2, 2);
+                }
+            }
         });
+        ctx.shadowBlur = 0;
     }
     window.onresize = resize;
 </script>
